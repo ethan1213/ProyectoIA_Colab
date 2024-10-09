@@ -1,56 +1,104 @@
+import os
 import librosa
-import librosa.display
-import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import base64
+from PIL import Image
+from io import BytesIO
 
-# Asegúrate de usar las rutas correctas de los archivos
-audio_path_1 = 'D:/Ibai-real_1_.mp3'  # Primer archivo
-audio_path_2 = 'D:/IbaiIA.mp3'  # Cambia esto a la ruta correcta del segundo archivo
+def convertir_y_guardar_espectrograma(archivo_audio, nombre_salida, nombre_audio):
+    # Cargar el audio
+    y, sr = librosa.load(archivo_audio, sr=None)
 
-# Cargar el primer archivo MP3
-y1, sr1 = librosa.load(audio_path_1, sr=None)
-# Cargar el segundo archivo MP3
-y2, sr2 = librosa.load(audio_path_2, sr=None)
+    # Generar el espectrograma Mel
+    S = librosa.feature.melspectrogram(y=y, sr=sr, n_mels=128)
 
-# Asegurarse de que ambas frecuencias de muestreo sean iguales
-if sr1 != sr2:
-    raise ValueError("Los archivos de audio tienen diferentes frecuencias de muestreo.")
+    # Convertir el espectrograma a escala logarítmica
+    S_db = librosa.power_to_db(S, ref=np.max)
 
-# Espectrograma en escala mel del primer archivo
-S_mel_1 = librosa.feature.melspectrogram(y=y1, sr=sr1, n_mels=128)
-S_mel_db_1 = librosa.amplitude_to_db(S_mel_1, ref=np.max)
+    # Crear una imagen del espectrograma usando matplotlib
+    plt.figure(figsize=(10, 4))
+    librosa.display.specshow(S_db, sr=sr, x_axis='time', y_axis='mel')
+    plt.colorbar(format='%+2.0f dB')
 
-# Espectrograma en escala mel del segundo archivo
-S_mel_2 = librosa.feature.melspectrogram(y=y2, sr=sr2, n_mels=128)
-S_mel_db_2 = librosa.amplitude_to_db(S_mel_2, ref=np.max)
+    # Añadir el título (nombre del archivo de audio) en la parte superior
+    #plt.title(f"Espectrograma: {nombre_audio}", fontsize=12)
 
-# Comparación visual de las diferencias entre los espectrogramas
-difference = S_mel_db_1 - S_mel_db_2
+    # Guardar la imagen del espectrograma en la carpeta de salida
+    ruta_imagen = os.path.join(carpeta_salida_espectrogramas, nombre_salida)
+    plt.tight_layout()
+    plt.savefig(ruta_imagen, format='png')
+    plt.close()
 
-# Crear figura con tres subgráficos: dos originales y la diferencia
-plt.figure(figsize=(14, 10))
+    return ruta_imagen
 
-# Primer espectrograma: Archivo 1
-plt.subplot(3, 1, 1)
-librosa.display.specshow(S_mel_db_1, sr=sr1, x_axis='time', y_axis='mel')
-plt.colorbar(format='%+2.0f dB')
-plt.title('Espectrograma en escala mel - Audio 1')
+carpeta_salida_espectrogramas = '/Proyecto SIC/espectrogramas_IA'
 
-# Segundo espectrograma: Archivo 2
-plt.subplot(3, 1, 2)
-librosa.display.specshow(S_mel_db_2, sr=sr2, x_axis='time', y_axis='mel')
-plt.colorbar(format='%+2.0f dB')
-plt.title('Espectrograma en escala mel - Audio 2')
+# Crear la carpeta para guardar los espectrogramas si no existe
+if not os.path.exists(carpeta_salida_espectrogramas):
+    os.makedirs(carpeta_salida_espectrogramas)
 
-# Diferencia entre los espectrogramas
-plt.subplot(3, 1, 3)
-librosa.display.specshow(difference, sr=sr1, x_axis='time', y_axis='mel')
-plt.colorbar(format='%+2.0f dB')
-plt.title('Diferencias entre los espectrogramas')
+# Crear listas vacías para almacenar la información de los archivos
+nombres_archivos = []
+duraciones = []
+frecuencias_muestreo = []
+rutas_imagenes_espectrograma = []
+etiquetas = []
 
-plt.tight_layout()
+# Obtener la lista de archivos en la carpeta
+archivos_audio = [f for f in os.listdir('Proyecto SIC/Voces IA') if f.endswith('.mp3') or f.endswith('.wav')]
+
+# Recorrer cada archivo de audio y procesarlo
+for archivo in archivos_audio:
+    ruta_archivo = os.path.join('Proyecto SIC\Voces IA', archivo)
+
+    # Cargar el archivo de audio usando librosa
+    y, sr = librosa.load(ruta_archivo, sr=None)
+
+    # Guardar la información básica del archivo
+    nombres_archivos.append(archivo)
+    duraciones.append(librosa.get_duration(y=y, sr=sr))
+    frecuencias_muestreo.append(sr)
+
+    # Generar y guardar el espectrograma como una imagen PNG con el nombre del archivo de audio
+    print(f"Procesando archivo: {archivo}")
+    nombre_salida_espectrograma = archivo.replace('.mp3', '.png').replace('.wav', '.png')
+    ruta_imagen = convertir_y_guardar_espectrograma(ruta_archivo, nombre_salida_espectrograma, archivo)
+    rutas_imagenes_espectrograma.append(ruta_imagen)
+
+    # Asignar una etiqueta basada en el nombre del archivo (ajusta esta lógica según el dataset)
+    etiqueta = 1 if 'real' in archivo.lower() else 0
+    etiquetas.append(etiqueta)
+
+# Crear un DataFrame con la información de los archivos y las rutas de los espectrogramas
+df = pd.DataFrame({
+    'Nombre del archivo': nombres_archivos,
+    'Duración (segundos)': duraciones,
+    'Frecuencia de muestreo': frecuencias_muestreo,
+    'Ruta espectrograma': rutas_imagenes_espectrograma,
+    'Etiqueta': etiquetas
+})
+
+df.head()
+
+# Guardar el DataFrame como archivo CSV en la ruta correcta
+ruta_csv = os.path.join(carpeta_salida_espectrogramas, 'dataset_audio_IA.csv')
+df.to_csv(ruta_csv, index=False)
+
+# Mostrar el DataFrame
+df.head()
+
+# Supongamos que `espectrograma_base64` es la cadena base64 de una de tus imágenes en el DataFrame
+espectrograma_base64 = "iVBORw0KGgoAAAANSUhEUgAAAoAAAAHgCAYAAAA10dzkAAAAOXRFWHRTb2Z0d2FyZQBNYXRwbG90bGliIHZlcnNpb24zLjcuMSwgaHR0cHM6Ly9tYXRwbG90bGliLm9yZy/bCgiHAAAACXBIWXMAAA9hAAAPYQGoP6dpAAAIyUlEQVR4nO3WMQEAIAzAMMC/5+ECjiYKenbPzCwAADLO7wAAAN4ygAAAMQYQACDGAAIAxBhAAIAYAwgAEGMAAQBiDCAAQIwBBACIMYAAADEGEAAgxgACAMQYQACAGAMIABBjAAEAYgwgAECMAQQAiDGAAAAxBhAAIMYAAgDEGEAAgBgDCAAQYwABAGIMIABAjAEEAIgxgAAAMQYQACDGAAIAxBhAAIAYAwgAEGMAAQBiDCAAQIwBBACIMYAAADEGEAAgxgACAMQYQACAGAMIABBjAAEAYgwgAECMAQQAiDGAAAAxBhAAIMYAAgDEGEAAgBgDCAAQYwABAGIMIABAjAEEAIgxgAAAMQYQACDGAAIAxBhAAIAYAwgAEGMAAQBiDCAAQIwBBACIMYAAADEGEAAgxgACAMQYQACAGAMIABBjAAEAYgwgAECMAQQAiDGAAAAxBhAAIMYAAgDEGEAAgBgDCAAQYwABAGIMIABAjAEEAIgxgAAAMQYQACDGAAIAxBhAAIAYAwgAEGMAAQBiDCAAQIwBBACIMYAAADEGEAAgxgACAMQYQACAGAMIABBjAAEAYgwgAECMAQQAiDGAAAAxBhAAIMYAAgDEGEAAgBgDCAAQYwABAGIMIABAjAEEAIgxgAAAMQYQACDGAAIAxBhAAIAYAwgAEGMAAQBiDCAAQIwBBACIMYAAADEGEAAgxgACAMQYQACAGAMIABBjAAEAYgwgAECMAQQAiDGAAAAxBhAAIMYAAgDEGEAAgBgDCAAQYwABAGIMIABAjAEEAIgxgAAAMQYQACDGAAIAxBhAAIAYAwgAEGMAAQBiDCAAQIwBBACIMYAAADEGEAAgxgACAMQYQACAGAMIABBjAAEAYgwgAECMAQQAiDGAAAAxBhAAIMYAAgDEGEAAgBgDCAAQYwABAGIMIABAjAEEAIgxgAAAMQYQACDGAAIAxBhAAIAYAwgAEGMAAQBiDCAAQIwBBACIMYAAADEGEAAgxgACAMQYQACAGAMIABBjAAEAYgwgAECMAQQAiDGAAAAxBhAAIMYAAgDEGEAAgBgDCAAQYwABAGIMIABAjAEEAIgxgAAAMQYQACDGAAIAxBhAAIAYAwgAEGMAAQBiDCAAQIwBBACIMYAAADEGEAAgxgACAMQYQACAGAMIABBjAAEAYgwgAECMAQQAiDGAAAAxBhAAIMYAAgDEGEAAgBgDCAAQYwABAGIMIABAjAEEAIgxgAAAMQYQACDGAAIAxBhAAIAYAwgAEGMAAQBiDCAAQIwBBACIMYAAADEGEAAgxgACAMQYQACAGAMIABBjAAEAYgwgAECMAQQAiDGAAAAxBhAAIMYAAgDEGEAAgBgDCAAQYwABAGIMIABAjAEEAIgxgAAAMQYQACDGAAIAxBhAAIAYAwgAEGMAAQBiDCAAQIwBBACIMYAAADEGEAAgxgACAMQYQACAGAMIABBjAAEAYgwgAECMAQQAiDGAAAAxBhAAIMYAAgDEGEAAgBgDCAAQYwABAGIMIABAjAEEAIgxgAAAMQYQACDGAAIAxBhAAIAYAwgAEGMAAQBiDCAAQIwBBACIMYAAADEGEAAgxgACAMQYQACAGAMIABBjAAEAYgwgAECMAQQAiDGAAAAxBhAAIMYAAgDEGEAAgBgDCAAQYwABAGIMIABAjAEEAIgxgAAAMQYQACDGAAIAxBhAAIAYAwgAEGMAAQBiDCAAQIwBBACIMYAAADEGEAAgxgACAMQYQACAGAMIABBjAAEAYgwgAECMAQQAiDGAAAAxBhAAIMYAAgDEGEAAgBgDCAAQYwABAGIMIABAjAEEAIgxgAAAMQYQACDGAAIAxBhAAIAYAwgAEGMAAQBiDCAAQIwBBACIMYAAADEGEAAgxgACAMQYQACAGAMIABBjAAEAYgwgAECMAQQAiDGAAAAxBhAAIMYAAgDEGEAAgBgDCAAQYwABAGIMIABAjAEEAIgxgAAAMQYQACDGAAIAxBhAAIAYAwgAEGMAAQBiDCAAQIwBBACIMYAAADEGEAAgxgACAMQYQACAGAMIABBjAAEAYgwgAECMAQQAiDGAAAAxBhAAIMYAAgDEGEAAgBgDCAAQYwABAGIMIABAjAEEAIgxgAAAMQYQACDGAAIAxBhAAIAYAwgAEGMAAQBiDCAAQIwBBACIMYAAADEGEAAgxgACAMQYQACAGAMIABBjAAEAYgwgAECMAQQAiDGAAAAxBhAAIMYAAgDEGEAAgBgDCAAQYwABAGIMIABAjAEEAIgxgAAAMQYQACDGAAIAxBhAAIAYAwgAEGMAAQBiDCAAQIwBBACIMYAAADEGEAAgxgACAMQYQACAGAMIABBjAAEAYgwgAECMAQQAiDGAAAAxBhAAIMYAAgDEGEAAgBgDCAAQYwABAGIMIABAjAEEAIgxgAAAMQYQACDGAAIAxBhAAIAYAwgAEGMAAQBiDCAAQIwBBACIMYAAADEGEAAgxgACAMQYQACAGAMIABBjAAEAYgwgAECMAQQAiDGAAAAxBhAAIMYAAgDEGEAAgBgDCAAQYwABAGIMIABAjAEEAIgxgAAAMQYQACDGAAIAxBhAAIAYAwgAEGMAAQBiDCAAQIwBBACIMYAAADEGEAAgxgACAMQYQACAGAMIABBjAAEAYgwgAECMAQQAiDGAAAAxBhAAIMYAAgDEGEAAgBgDCAAQYwABAGIMIABAjAEEAIgxgAAAMQYQACDGAAIAxBhAAIAYAwgAEGMAAQBiDCAAQIwBBACIMYAAADEGEAAgxgACAMQYQACAGAMIABBjAAEAYgwgAECMAQQAiDGAAAAxBhAAIMYAAgDEGEAAgBgDCAAQYwABAGIMIABAjAEEAIgxgAAAMQYQACDGAAIAxBhAAIAYAwgAEGMAAQBiDCAAQIwBBACIMYAAADEGEAAgxgACAMQYQACAGAMIABBjAAEAYgwgAECMAQQAiDGAAAAxBhAAIMYAAgDEGEAAgBgDCAAQYwABAGIuJnkHvKensmIAAAAASUVORK5CYII="  # Por ejemplo, mostrar la primera imagen
+
+# Decodificar la imagen base64
+imagen_decodificada = base64.b64decode(espectrograma_base64)
+
+# Convertir la imagen en un objeto de imagen que puede ser mostrado
+imagen = Image.open(BytesIO(imagen_decodificada))
+
+# Mostrar la imagen
+plt.imshow(imagen)
+plt.axis('off')  # Ocultar los ejes
 plt.show()
-
-# Comparación numérica
-mean_difference = np.mean(np.abs(difference))
-print(f'Diferencia media entre los espectrogramas: {mean_difference:.2f} dB')
