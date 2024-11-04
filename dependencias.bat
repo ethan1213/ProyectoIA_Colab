@@ -13,6 +13,8 @@ pip install seaborn
 pip install numpy
 pip install librosa
 pip install gc
+pip install yt-dlp
+pip install pydub
 
 echo Instalación completada.
 pause
