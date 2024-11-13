@@ -71,5 +71,5 @@ El proyecto está organizado en las siguientes carpetas:
 
 ---
 
-Este README incluye `CrearAudios.py` en los pasos de preparación y procesamiento de audio, así como en la sección de estructura del código, para que sea claro cómo ejecutarlo y qué función cumple en el proyecto.
+© Todos los derechos reservados para Samsung Innovation Campus. Proyecto desarrollado por Ethan Astorga y Alejandro Pimiento.
 
